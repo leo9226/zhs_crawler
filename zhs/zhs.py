@@ -23,18 +23,11 @@ from dotenv import load_dotenv  # type: ignore
 from loguru import logger
 
 
-# TODO: tests
-
-
 class Zhs:
     """Class to perform all steps - from building the URLs to sending the email"""
 
     def __init__(
-        self,
-        date: str,
-        start_hour: int,
-        end_hour: int,
-        receiver_email: str,
+        self, date: str, start_hour: int, end_hour: int, receiver_email: str,
     ) -> None:
         load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env")
 
@@ -118,14 +111,7 @@ class Zhs:
         for court_num, times in available_courts.items():
             for time in times:
                 start, end = time.split(" - ")
-                construct_df.append(
-                    [
-                        self.date,
-                        court_num,
-                        start,
-                        end,
-                    ]
-                )
+                construct_df.append([self.date, court_num, start, end])
 
         courts_df = pd.DataFrame(
             data=construct_df, columns=["date", "court", "start_time", "end_time"]
@@ -245,8 +231,8 @@ def verify_date(
     """
 
     try:
-        input_date = datetime.datetime.strptime(value, "%Y-%m-%d")
-        today = datetime.datetime.today()
+        input_date = pd.Timestamp(datetime.datetime.strptime(value, "%Y-%m-%d"))
+        today = pd.Timestamp(datetime.date.today())
         if input_date < today:
             raise click.BadParameter(
                 f"Input date is before today. {value} was provided"
@@ -272,8 +258,7 @@ def verify_email(
 
     # http://www.regular-expressions.info/email.html
     email_pattern: Pattern = re.compile(
-        r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b",
-        flags=re.IGNORECASE,
+        r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", flags=re.IGNORECASE,
     )
     if re.match(pattern=email_pattern, string=value):
         logger.info(f"Email {value} is valid")
