@@ -1,0 +1,46 @@
+# `pre-commit run --all-files` to run manually
+repos:
+  - repo: https://github.com/psf/black
+    rev: 19.10b0
+    hooks:
+      - id: black
+        require_serial: true
+        args:
+          - zhs
+          - tests
+  - repo: local
+    hooks:
+      - id: flake8
+        name: flake8
+        entry: flake8
+        language: python
+        types: [file, python]
+        pass_filenames: false
+        args:
+          - --config=setup.cfg
+          - zhs
+          - tests
+      - id: reorder-python-imports
+        name: reorder-python-imports
+        entry: reorder-python-imports
+        language: python
+        require_serial: true
+        types: [file, python]
+      - id: mypy
+        name: mypy
+        entry: mypy
+        language: python
+        types: [file, python]
+        pass_filenames: false
+        args:
+          - zhs
+          - tests
+      - id: pylint
+        name: pylint
+        entry: pylint
+        language: python
+        types: [file, python]
+        pass_filenames: false
+        args:
+          - zhs
+          - tests

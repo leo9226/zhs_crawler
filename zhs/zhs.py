@@ -23,7 +23,7 @@ from dotenv import load_dotenv
 from loguru import logger
 
 
-# TODO: tests; structure (dirs);
+# TODO: tests
 
 
 class Zhs:
@@ -86,7 +86,6 @@ class Zhs:
         all_courts = page_content.find(id="main-content-tabs").find(
             name="table", attrs={"class": "allarea"}
         )
-        # real_date = all_courts.find(name="input", attrs={"name": "date"}).get("value")
 
         court_periods = all_courts.find_all(
             name="table", attrs={"class": "areaPeriods"}
