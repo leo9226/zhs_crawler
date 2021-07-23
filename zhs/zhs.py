@@ -15,11 +15,11 @@ from typing import Pattern
 from typing import Tuple
 
 import click
-import pandas as pd
-import requests
+import pandas as pd  # type: ignore
+import requests  # type: ignore
 from bs4 import BeautifulSoup  # type: ignore
-from dateutil.relativedelta import relativedelta
-from dotenv import load_dotenv
+from dateutil.relativedelta import relativedelta  # type: ignore
+from dotenv import load_dotenv  # type: ignore
 from loguru import logger
 
 
