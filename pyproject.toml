@@ -12,6 +12,7 @@ requests = "^2.26.0"
 loguru = "^0.5.3"
 python-dotenv = "^0.18.0"
 beautifulsoup4 = "^4.9.3"
+selenium = "^3.141.0"
 
 [tool.poetry.dev-dependencies]
 pylint = "^2.9.5"

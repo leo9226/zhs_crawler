@@ -6,7 +6,7 @@ repos:
       - id: black
         require_serial: true
         args:
-          - zhs
+          - src
           - tests
   - repo: local
     hooks:
@@ -18,7 +18,7 @@ repos:
         pass_filenames: false
         args:
           - --config=setup.cfg
-          - zhs
+          - src
           - tests
       - id: reorder-python-imports
         name: reorder-python-imports
@@ -33,7 +33,7 @@ repos:
         types: [file, python]
         pass_filenames: false
         args:
-          - zhs
+          - src
           - tests
       - id: pylint
         name: pylint
@@ -42,5 +42,5 @@ repos:
         types: [file, python]
         pass_filenames: false
         args:
-          - zhs
+          - src
           - tests
