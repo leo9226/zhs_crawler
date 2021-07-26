@@ -1,8 +1,8 @@
 """Crawl available tennis courts from ZHS (Munich) and send an email to a provided email address"""
 import datetime
 import os
-import re
 import smtplib
+import time
 import urllib.parse
 from collections import defaultdict
 from email.mime.multipart import MIMEMultipart
@@ -10,11 +10,7 @@ from email.mime.text import MIMEText
 from pathlib import Path
 from typing import Dict
 from typing import List
-from typing import Optional
-from typing import Pattern
-from typing import Tuple
 
-import click
 import pandas as pd  # type: ignore
 import requests  # type: ignore
 from bs4 import BeautifulSoup  # type: ignore
@@ -22,12 +18,25 @@ from dateutil.relativedelta import relativedelta  # type: ignore
 from dotenv import load_dotenv  # type: ignore
 from loguru import logger
 
+from src.book_court import BookTennisCourt
+
+
+# TODO: --interval
+# TODO: --book-court
+# TODO: Put proper headers to requests.get
+# TODO: switch to requests.Session -> class variable
+
 
 class Zhs:
     """Class to perform all steps - from building the URLs to sending the email"""
 
+    # pylint: disable=too-many-instance-attributes
     def __init__(
-        self, date: str, start_hour: int, end_hour: int, receiver_email: str,
+        self,
+        date: str,
+        start_hour: int,
+        end_hour: int,
+        receiver_email: str,
     ) -> None:
         load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env")
 
@@ -41,6 +50,7 @@ class Zhs:
         )
         self.sender_email = os.environ["SENDER_EMAIL"]
         self.sender_password = os.environ["SENDER_PASSWORD"]
+        self.book_tennis_court = BookTennisCourt()
         logger.info(f"{self.__class__.__qualname__} successfully instantiated")
 
     def build_url(self, page: int) -> str:
@@ -92,12 +102,28 @@ class Zhs:
 
             times_for_court = []
             for available in available_hours:
-                time = available.find(name="a").text
-                times_for_court.append(time)
+                start_end_time = available.find(name="a").text
+                times_for_court.append(start_end_time)
             result[court_number] = times_for_court
 
         # remove courts with no available time slots
-        return {k: v for k, v in result.items() if len(v) > 0}
+        filtered = {k: v for k, v in result.items() if len(v) > 0}
+
+        fixed_times = {}
+
+        for court, times in filtered.items():
+            _, court_int = court.split(" ")
+            tmp_times = []
+            for i, slot in enumerate(times):
+                if i % 2 == 0:
+                    start, _ = slot.split(" - ")
+                    end = (
+                        datetime.datetime.strptime(start, "%H:%M")
+                        + relativedelta(hours=1)
+                    ).strftime("%H:%M")
+                    tmp_times.extend([start + " - " + end])
+            fixed_times[court_int] = tmp_times
+        return fixed_times
 
     def filter_relevant_courts(self, available_courts: Dict) -> pd.DataFrame:
         """
@@ -109,13 +135,14 @@ class Zhs:
 
         construct_df = []
         for court_num, times in available_courts.items():
-            for time in times:
-                start, end = time.split(" - ")
+            for start_end_time in times:
+                start, end = start_end_time.split(" - ")
                 construct_df.append([self.date, court_num, start, end])
 
         courts_df = pd.DataFrame(
             data=construct_df, columns=["date", "court", "start_time", "end_time"]
         )
+        courts_df["court"] = courts_df["court"].astype(int)
 
         return courts_df.loc[
             (
@@ -128,38 +155,52 @@ class Zhs:
             )
         ]
 
-    def compose_message(self, relevant_courts: pd.DataFrame) -> str:
+    def compose_message(
+        self, booked_court: pd.DataFrame, relevant_courts: pd.DataFrame
+    ) -> str:
         """
         Compose the E-Mail
+        :param booked_court: The booked court
         :param relevant_courts: Dataframe with all relevant tennis courts
         :return: the composed message, i.e. the body of the email
         """
 
-        mail_content = ""
+        mail_content = "Dear Roger,\n\n"
         mail_content += (
-            f"On {self.date}, between {self.start_hour}:00 and {self.end_hour}:00, "
-            "the following courts are available:\n"
+            f"Court number {booked_court['court'].iloc[0]} was booked on "
+            f"{booked_court['date'].iloc[0]} at {booked_court['start_time'].iloc[0]}!\n\n\n"
+        )
+        mail_content += (
+            f"If you want to play at another time, here is an overview of all available courts on "
+            f"{self.date} between {self.start_hour}:00 and {self.end_hour}:00:\n\n"
         )
         for court, start, end in zip(
             relevant_courts["court"],
             relevant_courts["start_time"],
             relevant_courts["end_time"],
         ):
-            mail_content += f"  -> {court}: {start} - {end}\n"
+            mail_content += f"  -> Court {court}: {start} - {end}\n"
 
         return mail_content.rstrip("\n")
 
-    def send_email(self, mail_content: str) -> None:
+    def send_email(
+        self, booked_court: pd.DataFrame, relevant_courts: pd.DataFrame
+    ) -> None:
         """
         Send the composed message to the player's provided email address
-        :param mail_content: mail conent, i.e. the body of the email
+        :param booked_court: The booked court
+        :param relevant_courts: All relevant courts
         :return:
         """
 
         message = MIMEMultipart()
         message["From"] = self.sender_email
         message["To"] = self.receiver_email
-        message["Subject"] = "Free Court Alert!"
+        message["Subject"] = "Court Alert! Court's Booked!"
+
+        mail_content = self.compose_message(
+            booked_court=booked_court, relevant_courts=relevant_courts
+        )
 
         # The body and the attachments for the mail
         message.attach(payload=MIMEText(mail_content, "plain"))
@@ -177,7 +218,7 @@ class Zhs:
 
         logger.info(f"Message successfully sent to {self.receiver_email}!")
 
-    def run(self) -> None:
+    def run_court_search(self) -> bool:
         """
         Put everything together. Loop through Zhs Pages 2, 3 and 4 and do the following for each
         1) build the url
@@ -199,115 +240,27 @@ class Zhs:
                 available_courts=available_courts
             )
             all_relevant_courts = pd.concat([all_relevant_courts, relevant_courts])
-        logger.info(f"{all_relevant_courts.shape[0] // 2} relevant courts were found!")
-        mail_content = self.compose_message(relevant_courts=all_relevant_courts)
+        logger.info(f"{all_relevant_courts.shape[0]} relevant courts were found!")
+
         if all_relevant_courts.shape[0]:
-            self.send_email(mail_content=mail_content)
-
-
-# pylint: disable=unused-argument
-def verify_start_end(
-    ctx: click.core.Context, param: click.core.Option, value: Tuple[int, int]
-) -> Optional[Tuple[int, int]]:
-    """Verify if start_hour is smaller than end_hour"""
-
-    start_hour, end_hour = value
-    if start_hour < end_hour:
-        logger.info(f"Time Window {value} is valid")
-        return value
-    raise click.BadParameter(f"{start_hour} must be smaller than {end_hour}!")
-
-
-# pylint: disable=unused-argument
-def verify_date(
-    ctx: click.core.Context, param: click.core.Option, value: str
-) -> Optional[str]:
-    """
-    Verify that
-    1) the date format is of yyyy-mm-dd
-    2) the date is valid
-    3) the date is not in the past
-    4) the date is at max 8 days in the future
-    """
-
-    try:
-        input_date = pd.Timestamp(datetime.datetime.strptime(value, "%Y-%m-%d"))
-        today = pd.Timestamp(datetime.date.today())
-        if input_date < today:
-            raise click.BadParameter(
-                f"Input date is before today. {value} was provided"
+            booked_court = all_relevant_courts.sample(1)
+            self.book_tennis_court.book_tennis_court(
+                date=booked_court["date"].iloc[0],
+                court_number=booked_court["court"].iloc[0],
+                start_time=booked_court["start_time"].iloc[0],
             )
-        max_date = today + relativedelta(days=8)
-        if input_date > max_date:
-            raise click.BadParameter(
-                f"Input date is too far in the future. {value} was provided"
+            self.send_email(
+                booked_court=booked_court, relevant_courts=all_relevant_courts
             )
-        logger.info(f"Date {value} is valid")
-        return value
-    except ValueError as value_error:
-        raise click.BadParameter(
-            f"Incorrect date or date format, must be YYYY-MM-DD! {value} was provided."
-        ) from value_error
+            return True
+        logger.info("No courts found. Zhs will be crawled again in 1 minute ...")
+        return False
 
+    def crawl_zhs(self) -> None:
+        """Crawl Zhs until a court is found"""
 
-# pylint: disable=unused-argument
-def verify_email(
-    ctx: click.core.Context, param: click.core.Option, value: str,
-) -> Optional[str]:
-    """Verify if email is valid"""
-
-    # http://www.regular-expressions.info/email.html
-    email_pattern: Pattern = re.compile(
-        r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", flags=re.IGNORECASE,
-    )
-    if re.match(pattern=email_pattern, string=value):
-        logger.info(f"Email {value} is valid")
-        return value
-    raise click.BadParameter(f"Invalid email! {value} was provided.")
-
-
-@click.command()
-@click.option(
-    "--date",
-    type=str,
-    help=(
-        "The date where you want to find a court. Format: yyyy-mm-dd. "
-        "e.g. `--date 2021-07-23` for the 23rd of July in 2021."
-        "Date must not be in the past. Date must not be further than 8 days in the future."
-    ),
-    callback=verify_date,  # type: ignore
-)
-@click.option(
-    "--time-window",
-    type=click.Tuple(
-        [click.IntRange(8, 20, clamp=True), click.IntRange(8, 20, clamp=True)]
-    ),
-    callback=verify_start_end,  # type: ignore
-    help=(
-        "At what time do you want to play? First value: start hour, second value: end hour. "
-        "E.g. `--time-window 17 20`, if you want to play between 17:00 and 20:00."
-    ),
-)
-@click.option(
-    "--receiver-email",
-    required=True,
-    type=str,
-    callback=verify_email,  # type: ignore
-    help="Your email address. E.g. `--email dalai.lama@tibet.cn`",
-)
-def cli(date: str, time_window: Tuple[int, int], receiver_email: str):
-    """Build Zhs class from CL inputs and execute it"""
-
-    start_hour, end_hour = time_window
-    zhs = Zhs(
-        date=date,
-        start_hour=start_hour,
-        end_hour=end_hour,
-        receiver_email=receiver_email,
-    )
-    zhs.run()
-
-
-if __name__ == "__main__":
-    # pylint: disable=no-value-for-parameter
-    cli()
+        found_a_court = False
+        while not found_a_court:
+            found_a_court = self.run_court_search()
+            if not found_a_court:
+                time.sleep(60)

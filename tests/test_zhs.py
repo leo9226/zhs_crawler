@@ -4,7 +4,7 @@ import pytest
 from click.testing import CliRunner
 from dateutil.relativedelta import relativedelta  # type: ignore
 
-from zhs.zhs import cli
+from src.zhs import cli
 
 
 @pytest.fixture(name="today")
