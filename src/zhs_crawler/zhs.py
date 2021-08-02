@@ -10,6 +10,7 @@ from email.mime.text import MIMEText
 from pathlib import Path
 from typing import Dict
 from typing import List
+from typing import Optional
 
 import pandas as pd  # type: ignore
 import requests  # type: ignore
@@ -18,13 +19,14 @@ from dateutil.relativedelta import relativedelta  # type: ignore
 from dotenv import load_dotenv  # type: ignore
 from loguru import logger
 
-from src.book_court import BookTennisCourt
+from src.zhs_crawler.book_court import BookTennisCourt
 
 
-# TODO: --interval
-# TODO: --book-court
 # TODO: Put proper headers to requests.get
 # TODO: switch to requests.Session -> class variable
+# TODO: clean-up & refactoring
+
+# TODO: telegram bot / discord bot?
 
 
 class Zhs:
@@ -37,13 +39,17 @@ class Zhs:
         start_hour: int,
         end_hour: int,
         receiver_email: str,
+        interval: int,
+        book_court: bool,
     ) -> None:
-        load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env")
+        load_dotenv(dotenv_path=Path(__file__).parent.parent.parent / ".env")
 
         self.date = date
         self.start_hour = start_hour
         self.end_hour = end_hour
         self.receiver_email = receiver_email
+        self.interval = interval
+        self.book_court = book_court
         self.base_url = (
             "https://ssl.forumedia.eu/zhs-courtbuchung.de"
             "/reservations.php?action=showReservations&type_id=1&"
@@ -156,7 +162,7 @@ class Zhs:
         ]
 
     def compose_message(
-        self, booked_court: pd.DataFrame, relevant_courts: pd.DataFrame
+        self, booked_court: Optional[pd.DataFrame], relevant_courts: pd.DataFrame
     ) -> str:
         """
         Compose the E-Mail
@@ -166,12 +172,13 @@ class Zhs:
         """
 
         mail_content = "Dear Roger,\n\n"
+        if booked_court:
+            mail_content += (
+                f"Court number {booked_court['court'].iloc[0]} was booked on "
+                f"{booked_court['date'].iloc[0]} at {booked_court['start_time'].iloc[0]}!\n\n\n"
+            )
         mail_content += (
-            f"Court number {booked_court['court'].iloc[0]} was booked on "
-            f"{booked_court['date'].iloc[0]} at {booked_court['start_time'].iloc[0]}!\n\n\n"
-        )
-        mail_content += (
-            f"If you want to play at another time, here is an overview of all available courts on "
+            f"Here is an overview of all available courts on "
             f"{self.date} between {self.start_hour}:00 and {self.end_hour}:00:\n\n"
         )
         for court, start, end in zip(
@@ -184,7 +191,7 @@ class Zhs:
         return mail_content.rstrip("\n")
 
     def send_email(
-        self, booked_court: pd.DataFrame, relevant_courts: pd.DataFrame
+        self, booked_court: Optional[pd.DataFrame], relevant_courts: pd.DataFrame
     ) -> None:
         """
         Send the composed message to the player's provided email address
@@ -243,17 +250,22 @@ class Zhs:
         logger.info(f"{all_relevant_courts.shape[0]} relevant courts were found!")
 
         if all_relevant_courts.shape[0]:
-            booked_court = all_relevant_courts.sample(1)
-            self.book_tennis_court.book_tennis_court(
-                date=booked_court["date"].iloc[0],
-                court_number=booked_court["court"].iloc[0],
-                start_time=booked_court["start_time"].iloc[0],
-            )
+            booked_court = None
+            if self.book_court:
+                booked_court = all_relevant_courts.sample(1)
+                self.book_tennis_court.book_tennis_court(
+                    date=booked_court["date"].iloc[0],
+                    court_number=booked_court["court"].iloc[0],
+                    start_time=booked_court["start_time"].iloc[0],
+                )
             self.send_email(
                 booked_court=booked_court, relevant_courts=all_relevant_courts
             )
             return True
-        logger.info("No courts found. Zhs will be crawled again in 1 minute ...")
+
+        logger.info(
+            f"No courts found. Zhs will be crawled again in {self.interval} seconds ..."
+        )
         return False
 
     def crawl_zhs(self) -> None:
@@ -263,4 +275,4 @@ class Zhs:
         while not found_a_court:
             found_a_court = self.run_court_search()
             if not found_a_court:
-                time.sleep(60)
+                time.sleep(self.interval)

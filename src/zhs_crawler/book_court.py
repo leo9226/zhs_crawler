@@ -1,16 +1,17 @@
 import os
 import time
 from pathlib import Path
+from typing import Dict
+from typing_extensions import Final
 
-import selenium  # type: ignore
 from dotenv import load_dotenv
 from loguru import logger
-from selenium import webdriver
+from selenium import webdriver  # type: ignore
 
 
-# selenium needs to find the right court-page
+# selenium needs to find the right court-page, e.g. court 9 is on page 3
 # //*[@id="pager-block"]/div[X]/div[2]/a/strong
-COURT_PAGE_MAPPER = {
+COURT_PAGE_MAPPER: Final[Dict[int, int]] = {
     2: 2,
     3: 2,
     4: 2,
@@ -32,7 +33,7 @@ COURT_PAGE_MAPPER = {
 
 # necessary for Buchung button as it does not have an id/name
 # '/html/body/div[5]/article/div/div[4]/div/table/tbody/tr/td[X]/form/div/input'
-MAP_COURT_TO_XPATH = {
+MAP_COURT_TO_XPATH: Final[Dict[int, int]] = {
     2: 1,
     3: 2,
     4: 3,
@@ -56,7 +57,7 @@ class BookTennisCourt:
     """Book a free court with Selenium"""
 
     def __init__(self) -> None:
-        load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env")
+        load_dotenv(dotenv_path=Path(__file__).parent.parent.parent / ".env")
 
         self.login_name = os.environ["LOGIN_NAME"]
         self.login_password = os.environ["LOGIN_PASSWORD"]
@@ -109,7 +110,9 @@ class BookTennisCourt:
         # close the driver and all browser windows
         driver.quit()
 
-        logger.info(f"Booked court {court_number} on {date} for 1 hour starting at {start_time}!")
+        logger.info(
+            f"Booked court {court_number} on {date} for 1 hour starting at {start_time}!"
+        )
 
 
 if __name__ == "__main__":

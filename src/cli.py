@@ -9,7 +9,7 @@ import pandas as pd  # type: ignore
 from dateutil.relativedelta import relativedelta  # type: ignore
 from loguru import logger
 
-from src.zhs import Zhs
+from src.zhs_crawler.zhs import Zhs
 
 
 # pylint: disable=unused-argument
@@ -106,7 +106,26 @@ def verify_email(
     callback=verify_email,  # type: ignore
     help="Your email address. E.g. `--email dalai.lama@tibet.com`",
 )
-def cli(date: str, time_window: Tuple[int, int], receiver_email: str):
+@click.option(
+    "--book-court",
+    default=True,
+    type=bool,
+    help="Automatically book a court? Default is True. E.g. `--book-court True`",
+)
+@click.option(
+    "--interval",
+    default=60,
+    type=click.IntRange(min=5),
+    help="""Interval in seconds in which Zhs will be crawled if no free courts are found.
+    Minimum is 5 seconds. Default is 60 seconds. E.g. `--interval 60`""",
+)
+def cli(
+    date: str,
+    time_window: Tuple[int, int],
+    receiver_email: str,
+    interval: int,
+    book_court: bool,
+):
     """Build Zhs class from CL inputs and execute it"""
 
     start_hour, end_hour = time_window
@@ -115,6 +134,8 @@ def cli(date: str, time_window: Tuple[int, int], receiver_email: str):
         start_hour=start_hour,
         end_hour=end_hour,
         receiver_email=receiver_email,
+        interval=interval,
+        book_court=book_court,
     )
     zhs.crawl_zhs()
 
