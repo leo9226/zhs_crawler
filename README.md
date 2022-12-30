@@ -45,7 +45,7 @@ The log output will like the following:
 ```
 
 ## TODOs
-- clean-up & refactoring, e.g. split up functions; add more comments
+- clean-up & refactoring, e.g. split up functions; add more comments; underscore private methods & variables
 - Put proper headers to requests.get
 - switch to requests.Session -> class variable
 - update python version
