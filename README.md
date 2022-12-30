@@ -11,7 +11,7 @@ An automatic crawler that checks if there are tennis courts available at a given
 2. Install poetry. `pip install poetry` // Alternatively `pip3 install poetry`
 3. Navigate into the root directory
 4. `poetry install`
-5. create a `.env` file in the root directory. See `.env.example`
+5. create a `.env` file in the root directory. See `.env.template`
 6. Run `python3 cli.py --help` to see the command line arguments
 
 ## Example
@@ -43,6 +43,14 @@ The log output will like the following:
 2022-10-14 18:31:37.013 | INFO     | src.zhs:run_court_search:251 - 0 relevant courts were found!
 2022-10-14 18:31:37.013 | INFO     | src.zhs:run_court_search:267 - No courts found. Zhs will be crawled again in 10 seconds ...
 ```
+
+## TODOs
+- clean-up & refactoring, e.g. split up functions; add more comments
+- Put proper headers to requests.get
+- switch to requests.Session -> class variable
+- update python version
+
+# TODO: telegram bot / discord bot?
 
 ## Links
 ZHS München: (https://ssl.forumedia.eu/zhs-courtbuchung.de/reservations.php?action=showRevervations&type_id=1&page=2) 
