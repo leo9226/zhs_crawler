@@ -44,13 +44,14 @@ The log output will like the following:
 2022-10-14 18:31:37.013 | INFO     | src.zhs:run_court_search:267 - No courts found. Zhs will be crawled again in 10 seconds ...
 ```
 
-## TODOs
+## TODOs & Ideas
+- When the courts re-open in spring 2023, the HTML code of the website must be analysed to make the script work again as some tags have changed and caused the script to break
 - clean-up & refactoring, e.g. split up functions; add more comments; underscore private methods & variables
 - Put proper headers to requests.get
 - switch to requests.Session -> class variable
 - update python version
-
-# TODO: telegram bot / discord bot?
+- build a front-end
+- telegram / discord bot
 
 ## Links
 ZHS München: (https://ssl.forumedia.eu/zhs-courtbuchung.de/reservations.php?action=showRevervations&type_id=1&page=2) 
